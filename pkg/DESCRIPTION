@@ -1,0 +1,13 @@
+Package: spinyReg
+Type: Package
+Title: sparse generative model and its EM algorithm
+Version: 0.1-0
+Date: 2014-09-11
+Author: Charles Bouveyron, Julien Chiquet, Pierre Latouche, Pierre-Alexandre
+    Mattei
+Maintainer: Julien Chiquet <julien.chiquet@gmail.com>
+Description: This package implements a generative model that uses a
+    spike-and-slab like prior distribution obtained by multiplying a
+    deterministic binary vector. Such a model allows an EM algorithm,
+    optimizing a type-II log-likelihood.
+License: GPL (>= 2)
