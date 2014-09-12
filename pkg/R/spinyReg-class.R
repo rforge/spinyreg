@@ -32,11 +32,12 @@
 ##'
 ##' @section Methods:
 ##' This class comes with the usual \code{predict(object, newx, ...)},
-##' \code{fitted(object, ...)}, \code{residuals(object, ...)},
+##' \code{fitted(object, ...)}, \code{residuals(object, ...)}, \code{coefficients(object, ...)},
 ##' \code{print(object, ...)} and \code{show(object)} generic (undocumented) methods.
 ##'
 ##' @aliases fitted,spinyreg-method predict,spinyreg-method
 ##' print,spinyreg-method show,spinyreg-method residuals,spinyreg-method
+##' coefficients,spinyreg-method
 ##'
 ##' @docType class
 ##'
@@ -47,6 +48,7 @@
 ##'
 ##' @exportClass spinyreg
 ##' @exportMethod fitted
+##' @exportMethod coefficients
 ##' @exportMethod residuals
 ##' @exportMethod predict
 ##' @exportMethod print
@@ -86,6 +88,12 @@ setMethod("print", "spinyreg", definition =
 
 setMethod("show", "spinyreg", definition =
    function(object) {print(object)}
+)
+
+setMethod("coefficients", "spinyreg", definition =
+   function(object, ...) {
+     return(object@coefficients)
+   }
 )
 
 setMethod("fitted", "spinyreg", definition =

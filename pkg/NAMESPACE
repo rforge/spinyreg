@@ -2,6 +2,7 @@
 
 export(spinyreg)
 exportClasses(spinyreg)
+exportMethods(coefficients)
 exportMethods(fitted)
 exportMethods(predict)
 exportMethods(print)
