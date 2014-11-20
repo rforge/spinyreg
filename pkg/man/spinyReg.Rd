@@ -5,19 +5,22 @@
 \title{spinyReg}
 \usage{
 spinyreg(X, Y, alpha = 0.1, gamma = 1, z = rep(1, ncol(X)),
-  intercept = TRUE, normalize = TRUE, verbose = 1, maxit = 1000,
-  eps = 1e-12)
+  intercept = TRUE, normalize = TRUE, verbose = 1, recovery = TRUE,
+  maxit = 1000, eps = 1e-12)
 }
 \arguments{
 \item{X}{matrix of features. Do NOT include intercept.}
 
 \item{Y}{matrix of responses.}
 
-\item{alpha}{numeric}
+\item{alpha}{numeric scalar; prior value for the alpha parameter
+(see the model's details). Default is 0.1.}
 
-\item{gamma}{numeric}
+\item{gamma}{numeric scalar; prior value for the gamma parameter
+(see the model's details). Default is 1.}
 
-\item{z}{vector}
+\item{z}{numeric vector; prior support of active variable. Default
+is \code{rep(1,p)}, meaning all variable activated}
 
 \item{intercept}{logical; indicates if a vector of intercepts
 should be included in the model. Default is \code{TRUE}.}
@@ -27,7 +30,12 @@ be normalized to have unit L2 norm before fitting.  Default is
 \code{TRUE}.}
 
 \item{verbose}{integer; activate verbose mode from '0' (nothing)
-to '2' (detailed output).}
+to '2' (detailed output).
+
+should be included in the model. Default is \code{TRUE}.}
+
+\item{recovery}{logical; indicates if a vector of intercepts
+should be included in the model. Default is \code{TRUE}.}
 
 \item{maxit}{integer; the maximal number of iteration
 (i.e. number of alternated optimization between each parameter)

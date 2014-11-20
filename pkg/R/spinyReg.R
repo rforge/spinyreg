@@ -6,11 +6,14 @@
 ##'
 ##' @param Y matrix of responses.
 ##'
-##' @param alpha numeric
+##' @param alpha numeric scalar; prior value for the alpha parameter
+##' (see the model's details). Default is 0.1.
 ##'
-##' @param gamma numeric
+##' @param gamma numeric scalar; prior value for the gamma parameter
+##' (see the model's details). Default is 1.
 ##'
-##' @param z vector
+##' @param z numeric vector; prior support of active variable. Default
+##' is \code{rep(1,p)}, meaning all variable activated
 ##'
 ##' @param intercept logical; indicates if a vector of intercepts
 ##' should be included in the model. Default is \code{TRUE}.
@@ -21,6 +24,11 @@
 ##'
 ##' @param verbose integer; activate verbose mode from '0' (nothing)
 ##' to '2' (detailed output).
+##'
+##' should be included in the model. Default is \code{TRUE}.
+##'
+##' @param recovery logical; indicates if a vector of intercepts
+##' should be included in the model. Default is \code{TRUE}.
 ##'
 ##' @param maxit  integer; the maximal number of iteration
 ##' (i.e. number of alternated optimization between each parameter)
@@ -51,6 +59,7 @@ spinyreg <-function(X,
                     intercept = TRUE,
                     normalize = TRUE,
                     verbose   = 1,
+                    recovery  = TRUE,
                     maxit     = 1000,
                     eps       = 1e-12) {
 
@@ -61,7 +70,6 @@ spinyreg <-function(X,
   y <- Y
   if (is.null(colnames(X))) {colnames(X) <- 1:p}
   names <- colnames(X)
-
 
   ## ======================================================
   ## INTERCEPT TREATMENT
@@ -98,7 +106,7 @@ spinyreg <-function(X,
     ## Global E-step: relevance
     if(verbose >= 1){cat('\n E step: relevance\n')}
     ## Call to relevance
-    out <- E.step(z, xtx, yty, xty, alpha, gamma, verbose,p=p,n=n)
+    out <- E.step(z, x, xtx, yty, xty, alpha, gamma, verbose)
     alpha <- out$alpha
     gamma <- out$gamma
     loglik <- c(loglik,out$loglik)
@@ -118,7 +126,6 @@ spinyreg <-function(X,
     }
 
     if (is.na(cond)) {
-
       return(list(q=NA,w=rep(NA,p),coef=rep(NA,p),w=NA,delta=NA,zrelax=NA,alpha=NA,gamma=NA,loglik=NA,margin=NA))
 
     }
@@ -131,18 +138,17 @@ spinyreg <-function(X,
   zstart <- as.numeric(z == 1)
   q0 = sum(zstart)
   if (q0 == 0) {zstart<-rep(0, p); zstart[id[1]]=1; q0 = 1}
-  margin <- rep(E.step(zstart, xtx, yty, xty, alpha=alpha, gamma=gamma, verbose=0, maxit=1, eps=1e-12,p=p,n=n)$loglik,q0)
+  margin <- rep(E.step( zstart, x, xtx, yty, xty, alpha=alpha, gamma=gamma, verbose=0, maxit=1, eps=1e-12)$loglik,q0)
 
   for(q in (q0+1):round(3*p/4)) {
     zstart<-rep(0, p); zstart[id[1:q]]=1
-    margin<-c(margin, E.step(zstart, xtx, yty, xty, alpha=alpha, gamma=gamma, verbose=0, maxit=1, eps=1e-12,p=p,n=n)$loglik)
+    margin<-c(margin, E.step(zstart, x, xtx, yty, xty, alpha=alpha, gamma=gamma, verbose=0, maxit=1, eps=1e-12)$loglik)
     if ((q <= round(p/2)) & (margin[q-1] > margin[q])){
       Etmp = c()
-
       for(j in 1:round(p/10)){
         ztmp = rep(0, p); ztmp[id[1:(q-1)]]=1
         ztmp[id[(q+j)]]=1
-        Etmp = c(Etmp,E.step(ztmp, xtx, yty, xty, alpha=alpha, gamma=gamma, verbose=0, maxit=1, eps=1e-12,p=p,n=n)$loglik)
+        Etmp = c(Etmp,E.step(ztmp, x, xtx, yty, xty, alpha=alpha, gamma=gamma, verbose=0, maxit=1,eps=1e-12)$loglik)
       }
       if (max(Etmp) > margin[q-1]) {
         pos = which.max(Etmp)
@@ -206,30 +212,43 @@ spinyreg <-function(X,
 }
 
 ####################################################################################################
-E.step <- function(z, xtx, yty, xty, alpha, gamma, verbose, maxit=1, eps=1e-12,p,n) {
+E.step <- function(z, x, xtx, yty, xty, alpha, gamma, verbose, maxit=1, eps=1e-12) {
+
+  n <- nrow(x); p <- ncol(x)
   Z <- as.matrix(diag(z))
   A <- which(z != 0)
   cond <- FALSE
   i <- 0
   loglik <- c()
 
+  ## Ensure an O(p^2 min(n,p)) complexity
+  woodburry <- ifelse (p>n,TRUE,FALSE)
+
   while(!cond) {
     i<-i+1
-
     ## Relevance E-step
-    Sninv <- gamma * Z %*% xtx %*% Z
-    diag(Sninv) <- diag(Sninv) + alpha
-    Sn <- chol2inv(chol(Sninv))
-
+    if (woodburry) {
+      XZ <- sweep(x,2,z,"*",check.margin=FALSE)
+      chol.out <- try(chol( diag(n)/gamma + tcrossprod(XZ)/alpha ), TRUE)
+      if (!is.character(chol.out)) {
+        Sn <- diag(p)/alpha - t(XZ) %*% chol2inv(chol.out) %*% (XZ) / (alpha^2)
+      } else {
+        Sninv <- gamma * Z %*% xtx %*% Z; diag(Sninv) <- diag(Sninv) + alpha
+        Sn <- chol2inv(chol(Sninv))
+      }
+    } else {
+      Sninv <- gamma * Z %*% xtx %*% Z; diag(Sninv) <- diag(Sninv) + alpha
+      Sn <- chol2inv(chol(Sninv))
+    }
     Mn <- gamma * Sn %*% Z %*% xty
     Sigma <- Sn + Mn %*% t(Mn)
-    dSn = det(Sn) # requiert un calcul robuste .. A FAIRE !!
-    #                   # regarder un code la relevance
-    #     if(dSn == 0) dSn = .Machine$double.eps
-    #     if(dSn == Inf) dSn = .Machine$double.xmax
-    #dSn = det(Sn[which(z>.Machine$double.eps),which(z>.Machine$double.eps)])
+    dSn <- det(Sn)
+    if(dSn == 0) dSn <- .Machine$double.eps
+    if(dSn == Inf) dSn <- .Machine$double.xmax
+    A <- which(z>.Machine$double.eps)
+    dSn <- det(as.matrix(Sn[A,A]))
 
-    loglik <- c(loglik,-gamma/2*yty + 1/2*crossprod(Mn,Sninv %*% Mn)
+    loglik <- c(loglik,-gamma/2*yty + gamma/2*crossprod(Mn,Z %*% xty)
                 + 1/2 * log(dSn) + length(z)/2*log(alpha)
                 + n/2*log(gamma) - n/2*log(2*pi))
 
