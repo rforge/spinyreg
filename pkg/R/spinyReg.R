@@ -27,8 +27,8 @@
 ##'
 ##' should be included in the model. Default is \code{TRUE}.
 ##'
-##' @param recovery logical; indicates if a vector of intercepts
-##' should be included in the model. Default is \code{TRUE}.
+##' @param recovery logical; indicates if the full path of models
+##' should be inspected for model selection. Default is \code{TRUE}.
 ##'
 ##' @param maxit  integer; the maximal number of iteration
 ##' (i.e. number of alternated optimization between each parameter)
@@ -143,17 +143,19 @@ spinyreg <-function(X,
   for(q in (q0+1):round(3*p/4)) {
     zstart<-rep(0, p); zstart[id[1:q]]=1
     margin<-c(margin, E.step(zstart, x, xtx, yty, xty, alpha=alpha, gamma=gamma, verbose=0, maxit=1, eps=1e-12)$loglik)
-    if ((q <= round(p/2)) & (margin[q-1] > margin[q])){
-      Etmp = c()
-      for(j in 1:round(p/10)){
-        ztmp = rep(0, p); ztmp[id[1:(q-1)]]=1
-        ztmp[id[(q+j)]]=1
-        Etmp = c(Etmp,E.step(ztmp, x, xtx, yty, xty, alpha=alpha, gamma=gamma, verbose=0, maxit=1,eps=1e-12)$loglik)
-      }
-      if (max(Etmp) > margin[q-1]) {
-        pos = which.max(Etmp)
-        idtmp = id[q]; id[q] = id[q+pos]; id[q+pos] = idtmp
-        margin[q] = max(Etmp)
+    if (recovery) {
+      if ((q <= round(p/2)) & (margin[q-1] > margin[q])){
+        Etmp = c()
+        for(j in 1:round(p/10)){
+          ztmp = rep(0, p); ztmp[id[1:(q-1)]]=1
+          ztmp[id[(q+j)]]=1
+          Etmp = c(Etmp,E.step(ztmp, x, xtx, yty, xty, alpha=alpha, gamma=gamma, verbose=0, maxit=1,eps=1e-12)$loglik)
+        }
+        if (max(Etmp) > margin[q-1]) {
+          pos = which.max(Etmp)
+          idtmp = id[q]; id[q] = id[q+pos]; id[q+pos] = idtmp
+          margin[q] = max(Etmp)
+        }
       }
     }
   }
@@ -259,9 +261,10 @@ E.step <- function(z, x, xtx, yty, xty, alpha, gamma, verbose, maxit=1, eps=1e-1
       cat("\t iteration : ", i, "alpha =", alpha, " log-lik =", loglik[i],"\n")
     }
 
-    if (i > 2)
+    if (i > 2) {
       cond <- (i >= maxit) | sum((alpha-alpha.old)^2)/sum(alpha.old^2) < eps
-    # cond <- (i >= maxit) | (loglik[i]-loglik[i-1])^2/loglik[i]^2 < eps
+      ## cond <- (i >= maxit) | (loglik[i]-loglik[i-1])^2/loglik[i]^2 < eps
+    }
 
     gamma <- n / (yty + t(z) %*% (xtx * Sigma) %*% z  - 2*t(z)%*%(Mn*xty) )
     gamma <- as.numeric(gamma)
