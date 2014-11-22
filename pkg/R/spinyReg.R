@@ -103,23 +103,21 @@ spinyreg <-function(X,
   while(!cond) {
     i <- i+1
 
-    ## Global E-step: relevance
-    if(verbose >= 1){cat('\n E step: relevance\n')}
+    ## E-step
+    if(verbose){cat('\n E step (parameter estimation)')}
     ## Call to relevance
-    out <- E.step(z, x, xtx, yty, xty, alpha, gamma, verbose)
+    out <- E.step(z, x, xtx, yty, xty, alpha, gamma)
     alpha <- out$alpha
     gamma <- out$gamma
     loglik <- c(loglik,out$loglik)
     Mn <- out$Mn
     Sigma <- out$Sigma
+    if(verbose){cat('\t alpha, gamma =', alpha, gamma,"\n")}
 
-    if(verbose >=1){cat('\n\t alpha, gamma =', alpha, gamma,"\n")}
-
-    ## Global M step
-    if(verbose >=1){cat('\n M step: quadratic binary problem\n')}
-    z <- M.step(z, gamma, Mn, Sigma, xty, xtx, verbose)
-    if(verbose >=1){cat('\n\t card(z) =', sum(z!=0), "\n")}
-    if(verbose >=1){cat('\n\t z =', which(z != 0), "\n")}
+    ## M step
+    if(verbose){cat('\n M step: support recovery')}
+    z <- M.step(z, gamma, Mn, Sigma, xty, xtx)
+    if(verbose){cat('\t card(z) =', sum(abs(z) > .Machine$double.eps), "\n")}
 
     if(i>1) {
       cond <- (i >= maxit) | ((loglik[i]-loglik[i-1])^2/loglik[i]^2 < eps)
@@ -131,25 +129,24 @@ spinyreg <-function(X,
     }
   }
 
-  if(verbose){cat('\n')}
-
   # Binarisation selon le chemin de sparsité + astuce de reorganisation
   id <- order(z,decreasing=TRUE)
   zstart <- as.numeric(z == 1)
   q0 = sum(zstart)
   if (q0 == 0) {zstart<-rep(0, p); zstart[id[1]]=1; q0 = 1}
-  margin <- rep(E.step( zstart, x, xtx, yty, xty, alpha=alpha, gamma=gamma, verbose=0, maxit=1, eps=1e-12)$loglik,q0)
+  margin <- rep(E.step( zstart, x, xtx, yty, xty, alpha, gamma)$loglik,q0)
 
+  if(verbose){cat("\n Model selection and sparsity path\n")}
   for(q in (q0+1):round(3*p/4)) {
     zstart<-rep(0, p); zstart[id[1:q]]=1
-    margin<-c(margin, E.step(zstart, x, xtx, yty, xty, alpha=alpha, gamma=gamma, verbose=0, maxit=1, eps=1e-12)$loglik)
+    margin<-c(margin, E.step(zstart, x, xtx, yty, xty, alpha, gamma)$loglik)
     if (recovery) {
       if ((q <= round(p/2)) & (margin[q-1] > margin[q])){
         Etmp = c()
         for(j in 1:round(p/10)){
           ztmp = rep(0, p); ztmp[id[1:(q-1)]]=1
           ztmp[id[(q+j)]]=1
-          Etmp = c(Etmp,E.step(ztmp, x, xtx, yty, xty, alpha=alpha, gamma=gamma, verbose=0, maxit=1,eps=1e-12)$loglik)
+          Etmp = c(Etmp,E.step(ztmp, x, xtx, yty, xty, alpha, gamma)$loglik)
         }
         if (max(Etmp) > margin[q-1]) {
           pos = which.max(Etmp)
@@ -187,106 +184,74 @@ spinyreg <-function(X,
   }
   names(coef) <- names
 
-  residuals <- Y - fitted
+  residuals <- as.numeric(Y - fitted)
   r.squared <- 1-sum(residuals^2)/sum(y^2)
 
   if (verbose >1) {
-    cat("\n DONE.\n")
+    cat("\n DONE!\n")
   }
 
   ## Then we are done
   return(
       new("spinyreg",
-              coefficients = coef,
-              alpha        = alpha      ,
-              gamma        = gamma      ,
-              residuals    = residuals  ,
-              fitted       = fitted     ,
-              r.squared    = r.squared  ,
-              normx        = normx      ,
-              intercept    = intercept,
-              monitoring   = list(loglik   = c(loglik),
-              margin   = c(margin),
-              iterates = i)
+          coefficients = coef,
+          alpha        = alpha      ,
+          gamma        = gamma      ,
+          residuals    = residuals  ,
+          fitted       = fitted     ,
+          r.squared    = r.squared  ,
+          normx        = normx      ,
+          intercept    = intercept,
+          monitoring   = list(loglik   = c(loglik),
+          margin   = c(margin),
+          iterates = i)
           )
       )
-
 }
 
 ####################################################################################################
-E.step <- function(z, x, xtx, yty, xty, alpha, gamma, verbose, maxit=1, eps=1e-12) {
+E.step <- function(z, x, xtx, yty, xty, alpha, gamma) {
 
   n <- nrow(x); p <- ncol(x)
   Z <- as.matrix(diag(z))
-  A <- which(z != 0)
   cond <- FALSE
-  i <- 0
   loglik <- c()
 
   ## Ensure an O(p^2 min(n,p)) complexity
-  woodburry <- ifelse (p>n,TRUE,FALSE)
-
-  while(!cond) {
-    i<-i+1
-    ## Relevance E-step
-    if (woodburry) {
-      XZ <- sweep(x,2,z,"*",check.margin=FALSE)
-      chol.out <- try(chol( diag(n)/gamma + tcrossprod(XZ)/alpha ), TRUE)
-      if (!is.character(chol.out)) {
-        Sn <- diag(p)/alpha - t(XZ) %*% chol2inv(chol.out) %*% (XZ) / (alpha^2)
-      } else {
-        Sninv <- gamma * Z %*% xtx %*% Z; diag(Sninv) <- diag(Sninv) + alpha
-        Sn <- chol2inv(chol(Sninv))
-      }
+  if (p>n) { # woodburry
+    XZ <- sweep(x,2,z,"*",check.margin=FALSE)
+    chol.out <- try(chol( diag(n)/gamma + tcrossprod(XZ)/alpha ), TRUE)
+    if (!is.character(chol.out)) {
+      Sn <- diag(p)/alpha - t(XZ) %*% chol2inv(chol.out) %*% (XZ) / (alpha^2)
     } else {
-      Sninv <- gamma * Z %*% xtx %*% Z; diag(Sninv) <- diag(Sninv) + alpha
+      Sninv <- gamma * Z %*% xtx %*% Z + alpha * diag(p)
       Sn <- chol2inv(chol(Sninv))
     }
-    Mn <- gamma * Sn %*% Z %*% xty
-    Sigma <- Sn + Mn %*% t(Mn)
-    dSn <- det(Sn)
-    if(dSn == 0) dSn <- .Machine$double.eps
-    if(dSn == Inf) dSn <- .Machine$double.xmax
-    A <- which(z>.Machine$double.eps)
-    dSn <- det(as.matrix(Sn[A,A]))
-
-    loglik <- c(loglik,-gamma/2*yty + gamma/2*crossprod(Mn,Z %*% xty)
-                + 1/2 * log(dSn) + length(z)/2*log(alpha)
-                + n/2*log(gamma) - n/2*log(2*pi))
-
-    ## Relevance M-step
-    alpha.old <- alpha
-    alpha <- p/trace(Sigma)
-    if(verbose >=2) {
-      cat("\t iteration : ", i, "alpha =", alpha, " log-lik =", loglik[i],"\n")
-    }
-
-    if (i > 2) {
-      cond <- (i >= maxit) | sum((alpha-alpha.old)^2)/sum(alpha.old^2) < eps
-      ## cond <- (i >= maxit) | (loglik[i]-loglik[i-1])^2/loglik[i]^2 < eps
-    }
-
-    gamma <- n / (yty + t(z) %*% (xtx * Sigma) %*% z  - 2*t(z)%*%(Mn*xty) )
-    gamma <- as.numeric(gamma)
+  } else {
+    Sninv <- gamma * Z %*% xtx %*% Z + alpha * diag(p)
+    Sn <- chol2inv(chol(Sninv))
   }
 
-  return(list(alpha=alpha, gamma=gamma, loglik=loglik[i],Mn=Mn,Sigma=Sigma))
+  Mn <- gamma * Sn %*% (z*xty)
+  Sigma <- Sn + tcrossprod(Mn)
+  dSn <- det(Sn)
+  if(dSn == 0) dSn <- .Machine$double.eps
+  if(dSn == Inf) dSn <- .Machine$double.xmax
+
+  loglik <- .5*(gamma*(crossprod(Mn,z*xty)-yty) + log(dSn) + p*log(alpha) + n*log(gamma/(2*pi)))
+
+  alpha <- p/sum(diag(Sigma))
+  gamma <- as.numeric(n/(yty + t(z) %*% (xtx * Sigma) %*% z  - 2*t(z)%*%(Mn*xty)))
+
+  return(list(alpha=alpha, gamma=gamma, loglik=loglik, Mn=Mn, Sigma=Sigma))
 }
+
 ################################################################################################
-M.step <- function(z, gamma, Mn, Sigma, xty, xtx, verbose) {
+M.step <- function(z, gamma, Mn, Sigma, xty, xtx) {
 
   fn <- function(x) { return(.5*gamma*t(x)%*%(xtx*Sigma)%*%x - gamma*crossprod(x, Mn*xty)) }
   gr <- function(x) { return((gamma*xtx*Sigma) %*% x - gamma*Mn*xty) }
 
-  res <- optim(z, fn=fn, gr=gr, lower=0, upper=1,
-               ##               lower=rep(.Machine$double.xmin, p),
-               ##               upper=rep(1/(1+.Machine$double.eps), p),
-               method="L-BFGS-B")
-  z = res$par
-  #z[z<.Machine$double.eps] = 0 # Pruning, utile ?
-  return(z)
-}
-
-trace <- function(x) {
-  return(sum(diag(x)))
+  res <- optim(z, fn=fn, gr=gr, lower=0, upper=1, method="L-BFGS-B")
+  return(res$par)
 }
