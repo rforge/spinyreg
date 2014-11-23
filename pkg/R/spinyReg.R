@@ -61,7 +61,7 @@ spinyreg <-function(X,
                     verbose   = 1,
                     recovery  = TRUE,
                     maxit     = 1000,
-                    eps       = 1e-12) {
+                    eps       = 1e-8) {
 
   X <- as.matrix(X)
 
@@ -125,7 +125,6 @@ spinyreg <-function(X,
 
     if (is.na(cond)) {
       return(list(q=NA,w=rep(NA,p),coef=rep(NA,p),w=NA,delta=NA,zrelax=NA,alpha=NA,gamma=NA,loglik=NA,margin=NA))
-
     }
   }
 
@@ -185,7 +184,7 @@ spinyreg <-function(X,
   names(coef) <- names
 
   residuals <- as.numeric(Y - fitted)
-  r.squared <- 1-sum(residuals^2)/sum(y^2)
+  r.squared <- 1-sum(residuals^2)/sum(Y^2)
 
   if (verbose >1) {
     cat("\n DONE!\n")
@@ -238,10 +237,11 @@ E.step <- function(z, x, xtx, yty, xty, alpha, gamma) {
   if(dSn == 0) dSn <- .Machine$double.eps
   if(dSn == Inf) dSn <- .Machine$double.xmax
 
-  loglik <- .5*(gamma*(crossprod(Mn,z*xty)-yty) + log(dSn) + p*log(alpha) + n*log(gamma/(2*pi)))
+  Mn.z.xty <- crossprod(Mn,z*xty)
+  loglik <- .5*(gamma*(Mn.z.xty-yty) + log(dSn) + p*log(alpha) + n*log(gamma/(2*pi)))
 
   alpha <- p/sum(diag(Sigma))
-  gamma <- as.numeric(n/(yty + t(z) %*% (xtx * Sigma) %*% z  - 2*t(z)%*%(Mn*xty)))
+  gamma <- as.numeric(n/(yty + crossprod(crossprod(xtx*Sigma, z),z) - 2*Mn.z.xty))
 
   return(list(alpha=alpha, gamma=gamma, loglik=loglik, Mn=Mn, Sigma=Sigma))
 }
@@ -249,8 +249,8 @@ E.step <- function(z, x, xtx, yty, xty, alpha, gamma) {
 ################################################################################################
 M.step <- function(z, gamma, Mn, Sigma, xty, xtx) {
 
-  fn <- function(x) { return(.5*gamma*t(x)%*%(xtx*Sigma)%*%x - gamma*crossprod(x, Mn*xty)) }
-  gr <- function(x) { return((gamma*xtx*Sigma) %*% x - gamma*Mn*xty) }
+  fn <- function(x) {return(gamma*(.5*crossprod(crossprod(xtx*Sigma, x),x) - crossprod(x, Mn*xty)))}
+  gr <- function(x) {return((gamma*xtx*Sigma) %*% x - gamma*Mn*xty)}
 
   res <- optim(z, fn=fn, gr=gr, lower=0, upper=1, method="L-BFGS-B")
   return(res$par)
