@@ -34,7 +34,7 @@
 ##' (i.e. number of alternated optimization between each parameter)
 ##' in the Expectation/Maximization algorithm.
 ##'
-##' @param eps a threshold for convergence. Default is \code{1e-12}.
+##' @param eps a threshold for convergence. Default is \code{1e-10}.
 ##'
 ##' @return an object with class \code{spinyreg}, see the
 ##' documentation page \code{\linkS4class{spinyreg}} for details.
@@ -61,7 +61,7 @@ spinyreg <-function(X,
                     verbose   = 1,
                     recovery  = TRUE,
                     maxit     = 1000,
-                    eps       = 1e-8) {
+                    eps       = 1e-10) {
 
   X <- as.matrix(X)
 
