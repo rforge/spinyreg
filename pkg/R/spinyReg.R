@@ -128,7 +128,7 @@ spinyreg <-function(X,
     }
   }
 
-  # Binarisation selon le chemin de sparsité + astuce de reorganisation
+  # Binarisation selon le chemin de sparsite + astuce de reorganisation
   id <- order(z,decreasing=TRUE)
   zstart <- as.numeric(z == 1)
   q0 = sum(zstart)

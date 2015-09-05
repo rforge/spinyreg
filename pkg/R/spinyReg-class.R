@@ -55,7 +55,7 @@
 ##' @exportMethod show
 ##'
 ##' @importFrom stats fitted predict residuals
-##'
+##' @import methods
 setClass("spinyreg",
   representation = representation(
      coefficients = "numeric",
