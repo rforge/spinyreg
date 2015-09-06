@@ -50,6 +50,7 @@
 ##' y <- data[, 9]
 ##' out <- spinyreg(x,y,verbose=2)
 ##' }
+##' @importFrom stats optim lm.fit
 ##' @export
 spinyreg <-function(X,
                     Y,

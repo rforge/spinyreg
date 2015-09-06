@@ -107,7 +107,7 @@ setMethod("predict", "spinyreg", definition =
      if (is.null(newx)) {
        return(object@fitted)
      } else {
-       if (intercept) {
+       if (object@intercept) {
          cbind(1,newx) %*% object@coefficients
        } else {
          newx %*% object@coefficients
