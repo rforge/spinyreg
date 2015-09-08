@@ -6,9 +6,11 @@ Date: 2015-09-05
 Author: Charles Bouveyron, Julien Chiquet, Pierre Latouche, Pierre-Alexandre
     Mattei
 Maintainer: Julien Chiquet <julien.chiquet@gmail.com>
-Description: Implements a generative model that uses a
-    spike-and-slab like prior distribution obtained by multiplying a
-    deterministic binary vector. Such a model allows an EM algorithm,
-    optimizing a type-II log-likelihood.
+Description: Implements a generative model for Bayesian variable
+ selection in high-dimensional linear regression. It uses a
+ spike-and-slab like prior distribution obtained by multiplying a
+ deterministic binary vector with with a random Gaussian parameter
+ vector. Such a model allows the use of an EM algorithm, optimizing a
+ type-II log-likelihood, for inference.
 License: GPL (>= 2)
 Imports: methods
